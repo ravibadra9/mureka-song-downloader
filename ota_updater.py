@@ -20,10 +20,13 @@ from pathlib import Path
 EXTENSION_ROOT = Path(__file__).resolve().parent
 
 # Chrome extension policy strictly prohibits folders starting with "_" (like __pycache__)
-def _purge_pycache():
-    p = EXTENSION_ROOT / "__pycache__"
-    if p.exists():
-        shutil.rmtree(p, ignore_errors=True)
+def _purge_pycache(target_dir=EXTENSION_ROOT):
+    try:
+        p = target_dir / "__pycache__"
+        if p.exists():
+            shutil.rmtree(p, ignore_errors=True)
+    except Exception:
+        pass
 
 _purge_pycache()
 atexit.register(_purge_pycache)

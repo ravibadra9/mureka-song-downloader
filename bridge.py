@@ -23,11 +23,16 @@ import subprocess
 import threading
 from pathlib import Path
 
+_BRIDGE_DIR = Path(__file__).resolve().parent
+
 # Chrome extension restriction: No folder starting with "_" allowed in extension directory
-def _purge_pycache():
-    p = Path(__file__).resolve().parent / "__pycache__"
-    if p.exists():
-        shutil.rmtree(p, ignore_errors=True)
+def _purge_pycache(target_dir=_BRIDGE_DIR):
+    try:
+        p = target_dir / "__pycache__"
+        if p.exists():
+            shutil.rmtree(p, ignore_errors=True)
+    except Exception:
+        pass
 
 _purge_pycache()
 atexit.register(_purge_pycache)
