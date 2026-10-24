@@ -477,10 +477,40 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (action === 'OTA_APPLY') {
+    // 1. Try local companion bridge first
     fetch(`${LOCAL_BRIDGE_URL}/ota/apply`, { method: 'POST' })
       .then(r => r.json())
       .then(data => sendResponse({ success: true, data }))
-      .catch(err => sendResponse({ success: false, error: err.message }));
+      .catch(async () => {
+        // 2. Fallback: check if local files on disk are already updated
+        try {
+          const diskRes = await fetch(chrome.runtime.getURL('version.json') + '?t=' + Date.now());
+          const diskData = await diskRes.json();
+          const runningVer = chrome.runtime.getManifest().version || '1.0.0';
+
+          if (diskData && diskData.version && diskData.version !== runningVer) {
+            sendResponse({
+              success: true,
+              reloaded: true,
+              data: {
+                message: `Local files are already at v${diskData.version}. Reloading extension...`,
+                updated_files_count: 'all'
+              }
+            });
+            setTimeout(() => {
+              chrome.runtime.reload();
+            }, 600);
+            return;
+          }
+        } catch (_) {}
+
+        // 3. Fallback: Bridge offline and files not yet patched
+        sendResponse({
+          success: false,
+          bridgeOffline: true,
+          error: 'Companion Bridge is not running.'
+        });
+      });
     return true;
   }
 
