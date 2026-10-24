@@ -111,9 +111,40 @@
     elements.consoleLogs.scrollTop = elements.consoleLogs.scrollHeight;
   }
 
-  // Sanitize file & folder names
-  function sanitizeName(name) {
-    return (name || 'song').replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 100);
+  // Sanitize file & folder names (Windows safe, no trailing dots or illegal characters)
+  function sanitizeName(name, fallback = 'Song') {
+    if (!name) return fallback;
+    let clean = String(name)
+      .replace(/[\\/:*?"<>|\r\n\t]/g, '_')
+      .replace(/\s+/g, ' ')
+      .trim();
+    clean = clean.replace(/[\.\s]+$/, '');
+    clean = clean.replace(/^\.+/, '');
+    return clean.slice(0, 100) || fallback;
+  }
+
+  // Extract song title with comprehensive fallbacks across song & feed objects
+  function extractSongTitle(song, feed = {}) {
+    const candidates = [
+      song.title,
+      song.song_name,
+      song.name,
+      song.title_alias,
+      song.track_name,
+      feed.title,
+      feed.song_title,
+      feed.prompt,
+      feed.name,
+      feed.desc,
+      feed.description,
+      song.prompt
+    ];
+    for (const c of candidates) {
+      if (c && typeof c === 'string' && c.trim()) {
+        return c.trim();
+      }
+    }
+    return `Song_${song.song_id || Date.now()}`;
   }
 
   // Initialize
@@ -827,11 +858,12 @@
     if (murekaTab) {
       try {
         const tabRes = await new Promise((resolve) => {
-          chrome.tabs.sendMessage(murekaTab.id, { action: 'PAGE_FETCH_SONGS', folderId }, resolve);
+          chrome.tabs.sendMessage(murekaTab.id, { action: 'PAGE_FETCH_SONGS', folderId, wsName }, resolve);
         });
         if (tabRes && tabRes.success && Array.isArray(tabRes.songs) && tabRes.songs.length > 0) {
           return tabRes.songs.map(s => ({
             ...s,
+            title: s.title || extractSongTitle(s),
             workspace_name: wsName,
             folder_id: folderId
           }));
@@ -857,19 +889,24 @@
       if (res && res.data && (res.data.code === 200 || res.data.code === 0) && res.data.data) {
         const feedList = res.data.data.list || [];
         feedList.forEach(feed => {
-          if (Array.isArray(feed.songs)) {
-            feed.songs.forEach(song => {
-              if (song.song_id && (song.mp3_url || song.url || song.audio_url)) {
-                allSongs.push({
-                  ...song,
-                  folder_id: folderId,
-                  workspace_name: wsName,
-                  feed_title: feed.title || '',
-                  mp3_url: resolveAudioUrl(song.mp3_url || song.url || song.audio_url)
-                });
-              }
-            });
-          }
+          const songsInFeed = Array.isArray(feed.songs) && feed.songs.length > 0
+            ? feed.songs
+            : (feed.song_id || feed.mp3_url || feed.audio_url ? [feed] : []);
+
+          songsInFeed.forEach(song => {
+            if (song.song_id && (song.mp3_url || song.url || song.audio_url)) {
+              const title = extractSongTitle(song, feed);
+              allSongs.push({
+                ...song,
+                title: title,
+                folder_id: folderId,
+                workspace_name: wsName,
+                feed_title: feed.title || '',
+                prompt: feed.prompt || song.prompt || '',
+                mp3_url: resolveAudioUrl(song.mp3_url || song.url || song.audio_url)
+              });
+            }
+          });
         });
 
         hasMore = Boolean(res.data.data.more) && Boolean(res.data.data.last_id) && feedList.length > 0;
@@ -978,6 +1015,22 @@
 
   // Execute Chrome Native Downloads
   async function executeChromeNativeDownload(queue, format, sortFolders, saveLyrics) {
+    const titleTracker = new Map();
+    function getUniqueTitle(wsName, rawTitle) {
+      const cleanWs = sanitizeName(wsName, 'My workspace');
+      const cleanTitle = sanitizeName(rawTitle, 'Song');
+      if (!titleTracker.has(cleanWs)) {
+        titleTracker.set(cleanWs, new Map());
+      }
+      const counts = titleTracker.get(cleanWs);
+      const lower = cleanTitle.toLowerCase();
+      const count = (counts.get(lower) || 0) + 1;
+      counts.set(lower, count);
+
+      const uniqueTitle = count > 1 ? `${cleanTitle} (v${count})` : cleanTitle;
+      return { cleanWs, uniqueTitle };
+    }
+
     for (let i = 0; i < queue.length; i++) {
       if (state.isCancelled) {
         log('Download queue stopped by user.', 'error');
@@ -990,8 +1043,8 @@
       }
 
       const song = queue[i];
-      const title = sanitizeName(song.title || song.song_name || `Song_${song.song_id}`);
-      const wsName = sanitizeName(song.workspace_name);
+      const rawTitle = song.title || song.song_name || song.feed_title || `Song_${song.song_id}`;
+      const { cleanWs: wsName, uniqueTitle: title } = getUniqueTitle(song.workspace_name, rawTitle);
 
       const pct = Math.round(((i + 1) / queue.length) * 100);
       if (elements.progOverallFill) elements.progOverallFill.style.width = `${pct}%`;
@@ -1020,12 +1073,29 @@
         const filename = `${title}.${ext}`;
         const targetPath = sortFolders ? `Mureka/${wsName}/${filename}` : `Mureka/${filename}`;
 
+        // Fetch blob in extension context for zero redirects and direct path preservation
+        let blobUrlToRevoke = null;
+        let downloadSrc = downloadUrl;
+        try {
+          const bRes = await fetch(downloadUrl);
+          if (bRes.ok) {
+            const blob = await bRes.blob();
+            downloadSrc = URL.createObjectURL(blob);
+            blobUrlToRevoke = downloadSrc;
+          }
+        } catch (_) {
+          downloadSrc = downloadUrl;
+        }
+
         await new Promise((resolve) => {
           chrome.runtime.sendMessage({
             action: 'DOWNLOAD_SONG',
-            url: downloadUrl,
+            url: downloadSrc,
             filename: targetPath
           }, (res) => {
+            if (blobUrlToRevoke) {
+              setTimeout(() => URL.revokeObjectURL(blobUrlToRevoke), 15000);
+            }
             if (res && res.success) {
               log(`Downloaded (${ext.toUpperCase()}): ${wsName}/${filename}`, 'success');
             } else {
@@ -1070,6 +1140,22 @@
     const zip = new window.JSZip();
     log(`Initializing ZIP packaging for ${queue.length} songs...`, 'cyan');
 
+    const titleTracker = new Map();
+    function getUniqueTitle(wsName, rawTitle) {
+      const cleanWs = sanitizeName(wsName, 'My workspace');
+      const cleanTitle = sanitizeName(rawTitle, 'Song');
+      if (!titleTracker.has(cleanWs)) {
+        titleTracker.set(cleanWs, new Map());
+      }
+      const counts = titleTracker.get(cleanWs);
+      const lower = cleanTitle.toLowerCase();
+      const count = (counts.get(lower) || 0) + 1;
+      counts.set(lower, count);
+
+      const uniqueTitle = count > 1 ? `${cleanTitle} (v${count})` : cleanTitle;
+      return { cleanWs, uniqueTitle };
+    }
+
     for (let i = 0; i < queue.length; i++) {
       if (state.isCancelled) break;
       while (state.isPaused) {
@@ -1078,8 +1164,8 @@
       }
 
       const song = queue[i];
-      const title = sanitizeName(song.title || song.song_name || `Song_${song.song_id}`);
-      const wsName = sanitizeName(song.workspace_name);
+      const rawTitle = song.title || song.song_name || song.feed_title || `Song_${song.song_id}`;
+      const { cleanWs: wsName, uniqueTitle: title } = getUniqueTitle(song.workspace_name, rawTitle);
 
       const pct = Math.round(((i + 1) / queue.length) * 100);
       if (elements.progOverallFill) elements.progOverallFill.style.width = `${pct}%`;

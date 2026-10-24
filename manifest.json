@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Mureka Song Downloader - All Workspaces",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Download songs from all workspaces in your Mureka.ai account in MP3 or Lossless WAV with organized workspace folders, batch ZIP export, and Python tool integration.",
   "icons": {
     "16": "icons/icon16.png",

@@ -201,7 +201,89 @@ function resolveAudioUrl(url) {
   return `https://cdn.mureka.ai/${clean}`;
 }
 
-// Download a single file using chrome.downloads
+// Active tracking structures for preserving exact workspace folder paths & song titles
+const downloadTargetPaths = new Map();
+const downloadUrlPaths = new Map();
+const pendingDownloadsQueue = [];
+
+// Intercept Chrome download filename determination to strictly enforce workspace subfolders & song names
+if (chrome.downloads && chrome.downloads.onDeterminingFilename) {
+  chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
+    let customPath = null;
+    const isOurExtension = item.byExtensionId === chrome.runtime.id;
+
+    // 1. Match by downloadId
+    if (downloadTargetPaths.has(item.id)) {
+      customPath = downloadTargetPaths.get(item.id);
+      downloadTargetPaths.delete(item.id);
+    }
+    // 2. Match by exact URL
+    else if (downloadUrlPaths.has(item.url)) {
+      customPath = downloadUrlPaths.get(item.url);
+      downloadUrlPaths.delete(item.url);
+    }
+    // 3. Match by finalUrl if redirected
+    else if (item.finalUrl && downloadUrlPaths.has(item.finalUrl)) {
+      customPath = downloadUrlPaths.get(item.finalUrl);
+      downloadUrlPaths.delete(item.finalUrl);
+    }
+    // 4. Match by pending queue for our extension
+    else if (isOurExtension && pendingDownloadsQueue.length > 0) {
+      // Find matching item by URL or get oldest unassigned item
+      const idx = pendingDownloadsQueue.findIndex(p => p.url === item.url || (item.finalUrl && p.url === item.finalUrl));
+      if (idx !== -1) {
+        customPath = pendingDownloadsQueue[idx].filename;
+        pendingDownloadsQueue.splice(idx, 1);
+      } else {
+        // Take the earliest queued download from our extension
+        const pending = pendingDownloadsQueue.shift();
+        if (pending) {
+          customPath = pending.filename;
+        }
+      }
+    }
+    // 5. Match by partial URL / CDN key
+    else {
+      for (const [u, path] of downloadUrlPaths.entries()) {
+        if (typeof u === 'string' && (item.url.includes(u) || u.includes(item.url) || (item.finalUrl && item.finalUrl.includes(u)))) {
+          customPath = path;
+          downloadUrlPaths.delete(u);
+          break;
+        }
+      }
+    }
+
+    // 6. Check if Chrome's item.filename already contains our directory structure
+    if (!customPath && item.filename && (item.filename.includes('Mureka') || item.filename.includes('/') || item.filename.includes('\\'))) {
+      customPath = item.filename;
+    }
+
+    if (customPath) {
+      // Normalize to forward slashes without leading slashes and strip illegal Windows characters
+      const cleanPath = customPath
+        .replace(/\\/g, '/')
+        .replace(/^\/+/, '')
+        .replace(/[:*?"<>|]/g, '_');
+
+      suggest({
+        filename: cleanPath,
+        conflictAction: 'uniquify'
+      });
+      return true;
+    }
+
+    // If it's our extension and still no path, keep existing item.filename or suggest default
+    if (isOurExtension && item.filename) {
+      suggest({ filename: item.filename, conflictAction: 'uniquify' });
+      return true;
+    }
+
+    // Default suggest fallback
+    suggest({ conflictAction: 'uniquify' });
+  });
+}
+
+// Download a single file using chrome.downloads with custom workspace folder & song title
 function downloadSongFile({ url, filename }) {
   return new Promise((resolve) => {
     const fullUrl = resolveAudioUrl(url);
@@ -210,15 +292,40 @@ function downloadSongFile({ url, filename }) {
       return;
     }
 
+    const cleanFilename = filename ? filename.replace(/\\/g, '/').replace(/^\/+/, '') : '';
+
+    if (cleanFilename) {
+      downloadUrlPaths.set(fullUrl, cleanFilename);
+      pendingDownloadsQueue.push({
+        url: fullUrl,
+        filename: cleanFilename,
+        timestamp: Date.now()
+      });
+
+      // Housekeeping: remove stale pending entries after 5 minutes
+      const now = Date.now();
+      while (pendingDownloadsQueue.length > 0 && (now - pendingDownloadsQueue[0].timestamp > 300000)) {
+        pendingDownloadsQueue.shift();
+      }
+      setTimeout(() => downloadUrlPaths.delete(fullUrl), 180000);
+    }
+
     chrome.downloads.download({
       url: fullUrl,
-      filename: filename,
+      filename: cleanFilename,
       conflictAction: 'uniquify',
       saveAs: false
     }, (downloadId) => {
       if (chrome.runtime.lastError) {
+        downloadUrlPaths.delete(fullUrl);
+        const qIdx = pendingDownloadsQueue.findIndex(p => p.url === fullUrl);
+        if (qIdx !== -1) pendingDownloadsQueue.splice(qIdx, 1);
         resolve({ success: false, error: chrome.runtime.lastError.message });
       } else {
+        if (downloadId && cleanFilename) {
+          downloadTargetPaths.set(downloadId, cleanFilename);
+          setTimeout(() => downloadTargetPaths.delete(downloadId), 180000);
+        }
         resolve({ success: true, downloadId });
       }
     });

@@ -100,13 +100,16 @@ PROGRESS = {
 }
 
 def sanitize_filename(name: str) -> str:
-    cleaned = re.sub(r'[\\/:*?"<>|]', '_', str(name or 'song')).strip()
+    cleaned = re.sub(r'[\\/:*?"<>|\r\n\t]', '_', str(name or 'song')).strip()
     cleaned = re.sub(r'\s+', ' ', cleaned)
+    cleaned = re.sub(r'[\.\s]+$', '', cleaned)
+    cleaned = re.sub(r'^\.+', '', cleaned)
     return cleaned[:100] or 'song'
 
 def download_single_song(item: dict, base_dir: Path, out_format: str, sort_folders: bool, save_lyrics: bool):
     global PROGRESS
-    title = sanitize_filename(item.get("title", f"Song_{item.get('song_id', 'unknown')}"))
+    raw_title = item.get("title") or item.get("song_name") or item.get("name") or item.get("feed_title") or item.get("prompt") or f"Song_{item.get('song_id', 'unknown')}"
+    title = sanitize_filename(raw_title)
     ws_name = sanitize_filename(item.get("workspace_name", "My workspace"))
     url = item.get("mp3_url") or item.get("url") or item.get("audio_url")
 
@@ -122,6 +125,17 @@ def download_single_song(item: dict, base_dir: Path, out_format: str, sort_folde
 
     ext = "wav" if out_format == "wav" else "mp3"
     target_file = target_dir / f"{title}.{ext}"
+
+    # Handle variation / duplicate title collision so duplicate variations don't overwrite each other
+    if target_file.is_file() and target_file.stat().st_size > 0:
+        ver = 2
+        while True:
+            candidate = target_dir / f"{title} (v{ver}).{ext}"
+            if not candidate.is_file() or candidate.stat().st_size == 0:
+                target_file = candidate
+                title = f"{title} (v{ver})"
+                break
+            ver += 1
 
     # Download file if not exists or size is 0
     if not target_file.is_file() or target_file.stat().st_size == 0:

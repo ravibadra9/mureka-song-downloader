@@ -54,9 +54,16 @@
     return `https://cdn.mureka.ai/${clean}`;
   }
 
-  // Sanitize filename
-  function sanitizeName(name) {
-    return (name || 'song').replace(/[\\/:*?"<>|]/g, '_').trim().slice(0, 100);
+  // Sanitize filename & folder name (Windows safe, no illegal chars or trailing dots)
+  function sanitizeName(name, fallback = 'Song') {
+    if (!name) return fallback;
+    let clean = String(name)
+      .replace(/[\\/:*?"<>|\r\n\t]/g, '_')
+      .replace(/\s+/g, ' ')
+      .trim();
+    clean = clean.replace(/[\.\s]+$/, ''); // Remove trailing dots & spaces for Windows
+    clean = clean.replace(/^\.+/, '');     // Remove leading dots
+    return clean.slice(0, 100) || fallback;
   }
 
   // Initialize once DOM is ready
@@ -122,7 +129,7 @@
       }
 
       if (action === 'PAGE_FETCH_SONGS') {
-        fetchWorkspaceSongs(request.folderId).then(songs => {
+        fetchWorkspaceSongs(request.folderId, request.wsName || '').then(songs => {
           sendResponse({ success: true, songs });
         }).catch(err => {
           sendResponse({ success: false, error: err.message, songs: [] });
@@ -505,8 +512,32 @@
     }
   }
 
+  // Extract song title with comprehensive fallbacks across song & feed objects
+  function extractSongTitle(song, feed = {}) {
+    const candidates = [
+      song.title,
+      song.song_name,
+      song.name,
+      song.title_alias,
+      song.track_name,
+      feed.title,
+      feed.song_title,
+      feed.prompt,
+      feed.name,
+      feed.desc,
+      feed.description,
+      song.prompt
+    ];
+    for (const c of candidates) {
+      if (c && typeof c === 'string' && c.trim()) {
+        return c.trim();
+      }
+    }
+    return `Song_${song.song_id || Date.now()}`;
+  }
+
   // Fetch all songs for a workspace with pagination
-  async function fetchWorkspaceSongs(folderId) {
+  async function fetchWorkspaceSongs(folderId, wsName = '') {
     const allSongs = [];
     let lastId = '';
     let hasMore = true;
@@ -539,18 +570,24 @@
       if (data && (data.code === 0 || data.code === 200) && data.data) {
         const feedList = data.data.list || [];
         feedList.forEach(feed => {
-          if (Array.isArray(feed.songs)) {
-            feed.songs.forEach(song => {
-              if (song.song_id && (song.mp3_url || song.url || song.audio_url)) {
-                allSongs.push({
-                  ...song,
-                  folder_id: folderId,
-                  feed_title: feed.title || '',
-                  mp3_url: resolveAudioUrl(song.mp3_url || song.url || song.audio_url)
-                });
-              }
-            });
-          }
+          const songsInFeed = Array.isArray(feed.songs) && feed.songs.length > 0
+            ? feed.songs
+            : (feed.song_id || feed.mp3_url || feed.audio_url ? [feed] : []);
+
+          songsInFeed.forEach(song => {
+            if (song.song_id && (song.mp3_url || song.url || song.audio_url)) {
+              const title = extractSongTitle(song, feed);
+              allSongs.push({
+                ...song,
+                title: title,
+                workspace_name: wsName,
+                folder_id: folderId,
+                feed_title: feed.title || '',
+                prompt: feed.prompt || song.prompt || '',
+                mp3_url: resolveAudioUrl(song.mp3_url || song.url || song.audio_url)
+              });
+            }
+          });
         });
 
         hasMore = Boolean(data.data.more) && Boolean(data.data.last_id) && feedList.length > 0;
@@ -624,7 +661,7 @@
         const ws = targetWorkspaces[i];
         if (progTitle) progTitle.textContent = `Scanning workspace [${ws.name}] (${i + 1}/${targetWorkspaces.length})...`;
 
-        const songs = await fetchWorkspaceSongs(ws.id);
+        const songs = await fetchWorkspaceSongs(ws.id, ws.name);
         songs.forEach(song => {
           downloadQueue.push({
             ...song,
@@ -645,19 +682,36 @@
         zip = new window.JSZip();
       }
 
+      // Variation tracker per workspace to prevent duplicate overwrites
+      const titleTracker = new Map();
+      function getUniqueTitle(wsName, rawTitle) {
+        const cleanWs = sanitizeName(wsName, 'My workspace');
+        const cleanTitle = sanitizeName(rawTitle, 'Song');
+        if (!titleTracker.has(cleanWs)) {
+          titleTracker.set(cleanWs, new Map());
+        }
+        const counts = titleTracker.get(cleanWs);
+        const lower = cleanTitle.toLowerCase();
+        const count = (counts.get(lower) || 0) + 1;
+        counts.set(lower, count);
+
+        const uniqueTitle = count > 1 ? `${cleanTitle} (v${count})` : cleanTitle;
+        return { cleanWs, uniqueTitle };
+      }
+
       let completedCount = 0;
 
       for (let i = 0; i < downloadQueue.length; i++) {
         if (cancelRequested) break;
 
         const song = downloadQueue[i];
-        const title = sanitizeName(song.title || song.feed_title || `Song_${song.song_id}`);
-        const wsFolder = sanitizeName(song.workspace_name || 'My workspace');
+        const rawTitle = song.title || song.song_name || song.feed_title || `Song_${song.song_id}`;
+        const { cleanWs: wsFolder, uniqueTitle: title } = getUniqueTitle(song.workspace_name, rawTitle);
 
         const pct = Math.round(((i + 1) / downloadQueue.length) * 100);
         if (progFill) progFill.style.width = `${pct}%`;
         if (progPercent) progPercent.textContent = `${pct}%`;
-        if (progDetail) progDetail.textContent = `${i + 1} / ${downloadQueue.length} songs (${wsFolder})`;
+        if (progDetail) progDetail.textContent = `${i + 1} / ${downloadQueue.length} songs (${wsFolder}/${title})`;
 
         // Get download URL
         let downloadUrl = null;
@@ -691,13 +745,32 @@
             console.error('ZIP fetch error:', e);
           }
         } else {
-          // Native Chrome Download
+          // Native Chrome Download: Fetch blob in page context for zero redirects and 100% path enforcement
+          let blobUrlToRevoke = null;
+          let downloadSrc = downloadUrl;
+          try {
+            const bRes = await fetch(downloadUrl);
+            if (bRes.ok) {
+              const blob = await bRes.blob();
+              downloadSrc = URL.createObjectURL(blob);
+              blobUrlToRevoke = downloadSrc;
+            }
+          } catch (fetchErr) {
+            console.warn('Direct blob fetch failed, falling back to direct URL:', fetchErr);
+            downloadSrc = downloadUrl;
+          }
+
           await new Promise((resolve) => {
             chrome.runtime.sendMessage({
               action: 'DOWNLOAD_SONG',
-              url: downloadUrl,
+              url: downloadSrc,
               filename: targetPath
-            }, resolve);
+            }, () => {
+              if (blobUrlToRevoke) {
+                setTimeout(() => URL.revokeObjectURL(blobUrlToRevoke), 15000);
+              }
+              resolve();
+            });
           });
 
           // Also download lyrics if selected
@@ -749,24 +822,101 @@
 
   // Send to Python Companion Bridge
   async function sendToPythonBridge() {
+    if (selectedWorkspaceIds.size === 0) {
+      alert('Please select at least one workspace to download.');
+      return;
+    }
+
     const btn = document.getElementById('mureka-btn-bridge');
+    const originalText = btn ? btn.textContent : '⚡ Python Bridge';
     if (btn) btn.textContent = 'Connecting...';
 
     // 1. Check if bridge is online
     chrome.runtime.sendMessage({ action: 'CHECK_LOCAL_BRIDGE' }, async (res) => {
       if (!res || !res.online) {
-        if (confirm('Local Companion Bridge is not currently running.\n\nDouble-click start_bridge.bat to activate high-speed direct saving to Desktop/Mureka_Songs.')) {
+        if (confirm('Local Companion Bridge is not currently running.\n\nDouble-click start_bridge.bat or start_downloader.bat to activate high-speed direct saving into workspace folders.')) {
           chrome.runtime.sendMessage({ action: 'OPEN_STUDIO' });
         }
-        if (btn) btn.textContent = '⚡ Python Bridge';
+        if (btn) btn.textContent = originalText;
         return;
       }
 
       // 2. Sync active session
-      chrome.runtime.sendMessage({ action: 'BRIDGE_SYNC_SESSION' }, (syncRes) => {
-        alert('Active Mureka session successfully synced to Python Companion Bridge!\nYou can now run mureka_downloader.py or start_downloader.bat directly on your PC.');
-        if (btn) btn.textContent = '⚡ Synced!';
-        setTimeout(() => { if (btn) btn.textContent = '⚡ Python Bridge'; }, 3000);
+      if (btn) btn.textContent = 'Syncing session...';
+      await new Promise(r => chrome.runtime.sendMessage({ action: 'BRIDGE_SYNC_SESSION' }, r));
+
+      // 3. Scan selected workspaces and collect songs
+      const progBox = document.getElementById('mureka-progress-box');
+      const progTitle = document.getElementById('mureka-prog-title');
+      const progPercent = document.getElementById('mureka-prog-percent');
+      const progFill = document.getElementById('mureka-prog-fill');
+      const progDetail = document.getElementById('mureka-prog-detail');
+
+      if (progBox) progBox.style.display = 'block';
+      if (progTitle) progTitle.textContent = 'Preparing songs for Python Bridge...';
+
+      const format = document.getElementById('mureka-opt-format')?.value || 'mp3';
+      const saveLyrics = document.getElementById('mureka-opt-lyrics')?.checked ?? true;
+      const sortFolders = document.getElementById('mureka-opt-folders')?.checked ?? true;
+
+      const targetWorkspaces = workspaces.filter(w => selectedWorkspaceIds.has(w.id));
+      const downloadQueue = [];
+
+      for (let i = 0; i < targetWorkspaces.length; i++) {
+        const ws = targetWorkspaces[i];
+        if (progTitle) progTitle.textContent = `Scanning workspace [${ws.name}] (${i + 1}/${targetWorkspaces.length})...`;
+        const songs = await fetchWorkspaceSongs(ws.id, ws.name);
+        songs.forEach(song => downloadQueue.push(song));
+      }
+
+      if (downloadQueue.length === 0) {
+        alert('No downloadable songs found in selected workspaces.');
+        if (btn) btn.textContent = originalText;
+        return;
+      }
+
+      // 4. Send batch to Python Bridge
+      if (btn) btn.textContent = '⚡ Downloading...';
+      const payload = {
+        format: format,
+        sort_folders: sortFolders,
+        save_lyrics: saveLyrics,
+        songs: downloadQueue.map(s => ({
+          song_id: s.song_id,
+          title: s.title,
+          workspace_name: s.workspace_name,
+          mp3_url: s.mp3_url,
+          lyrics: s.lyrics
+        }))
+      };
+
+      chrome.runtime.sendMessage({
+        action: 'BRIDGE_DOWNLOAD',
+        payload: payload
+      }, (resp) => {
+        if (!resp || !resp.success) {
+          alert(`Python Bridge error: ${resp?.error || 'Failed to start batch'}`);
+          if (btn) btn.textContent = originalText;
+          return;
+        }
+
+        // 5. Monitor bridge progress
+        const timer = setInterval(() => {
+          chrome.runtime.sendMessage({ action: 'BRIDGE_PROGRESS' }, (pollRes) => {
+            if (!pollRes || !pollRes.data) return;
+            const d = pollRes.data;
+            if (progFill) progFill.style.width = `${d.percent}%`;
+            if (progPercent) progPercent.textContent = `${d.percent}%`;
+            if (progDetail) progDetail.textContent = `${d.completed} / ${d.total} songs (${d.speed || ''})`;
+            if (progTitle) progTitle.textContent = d.status_text || 'Downloading via Python Bridge...';
+
+            if (d.status === 'finished') {
+              clearInterval(timer);
+              if (btn) btn.textContent = '⚡ Finished!';
+              setTimeout(() => { if (btn) btn.textContent = originalText; }, 4000);
+            }
+          });
+        }, 1000);
       });
     });
   }

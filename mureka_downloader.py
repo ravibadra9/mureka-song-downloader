@@ -63,8 +63,10 @@ CANDIDATE_SESSION_FILES = [
 ]
 
 def sanitize_filename(name: str) -> str:
-    cleaned = re.sub(r'[\\/:*?"<>|]', '_', str(name or 'song')).strip()
+    cleaned = re.sub(r'[\\/:*?"<>|\r\n\t]', '_', str(name or 'song')).strip()
     cleaned = re.sub(r'\s+', ' ', cleaned)
+    cleaned = re.sub(r'[\.\s]+$', '', cleaned)
+    cleaned = re.sub(r'^\.+', '', cleaned)
     return cleaned[:100] or 'song'
 
 class MurekaAPIClient:
@@ -164,15 +166,21 @@ class MurekaAPIClient:
                 data = res["data"]
                 feed_list = data.get("list", [])
                 for feed in feed_list:
-                    if isinstance(feed.get("songs"), list):
-                        for s in feed["songs"]:
-                            if s.get("song_id") and (s.get("mp3_url") or s.get("url") or s.get("audio_url")):
-                                s["feed_title"] = feed.get("title", "")
-                                s["folder_id"] = folder_id
-                                url = s.get("mp3_url") or s.get("url") or s.get("audio_url")
-                                if url and not url.startswith("http"):
-                                    s["mp3_url"] = f"{self.CDN_URL}/{url.lstrip('/')}"
-                                songs.append(s)
+                    songs_in_feed = feed.get("songs") if isinstance(feed.get("songs"), list) and len(feed.get("songs")) > 0 else ([feed] if (feed.get("song_id") or feed.get("mp3_url") or feed.get("audio_url")) else [])
+                    for s in songs_in_feed:
+                        if s.get("song_id") and (s.get("mp3_url") or s.get("url") or s.get("audio_url")):
+                            title = (
+                                s.get("title") or s.get("song_name") or s.get("name")
+                                or feed.get("title") or feed.get("song_title") or feed.get("prompt") or feed.get("name") or feed.get("desc")
+                                or s.get("prompt") or f"Song_{s.get('song_id')}"
+                            )
+                            s["title"] = str(title).strip()
+                            s["feed_title"] = feed.get("title", "")
+                            s["folder_id"] = folder_id
+                            url = s.get("mp3_url") or s.get("url") or s.get("audio_url")
+                            if url and not url.startswith("http"):
+                                s["mp3_url"] = f"{self.CDN_URL}/{url.lstrip('/')}"
+                            songs.append(s)
 
                 if on_progress:
                     on_progress(len(songs))
@@ -239,13 +247,25 @@ def find_saved_session() -> tuple[str, str]:
     return "", ""
 
 def download_song_worker(api: MurekaAPIClient, item: dict, base_dir: Path, fmt: str, sort_folders: bool, save_lyrics: bool, save_cover: bool) -> bool:
-    title = sanitize_filename(item.get("title", f"Song_{item.get('song_id')}"))
+    raw_title = item.get("title") or item.get("song_name") or item.get("name") or item.get("feed_title") or item.get("prompt") or f"Song_{item.get('song_id')}"
+    title = sanitize_filename(raw_title)
     ws_name = sanitize_filename(item.get("workspace_name", "My workspace"))
     target_dir = base_dir / ws_name if sort_folders else base_dir
     target_dir.mkdir(parents=True, exist_ok=True)
 
     ext = "wav" if fmt == "wav" else "mp3"
     target_file = target_dir / f"{title}.{ext}"
+
+    # Handle variation / duplicate title collision so duplicate variations don't overwrite each other
+    if target_file.is_file() and target_file.stat().st_size > 0:
+        ver = 2
+        while True:
+            candidate = target_dir / f"{title} (v{ver}).{ext}"
+            if not candidate.is_file() or candidate.stat().st_size == 0:
+                target_file = candidate
+                title = f"{title} (v{ver})"
+                break
+            ver += 1
 
     if not target_file.is_file() or target_file.stat().st_size == 0:
         audio_url = None
