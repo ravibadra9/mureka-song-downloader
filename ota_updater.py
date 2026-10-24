@@ -1,25 +1,32 @@
 """
 ota_updater.py — Over-The-Air (OTA) Hot Updater for Mureka Song Downloader
 Enables 1-click seamless updates directly from GitHub without removing & reinstalling the Chrome extension.
-
-Features:
-- Checks remote version against local manifest/version.json
-- Downloads latest code package directly from GitHub
-- Safely replaces extension files in-place (manifest.json, popup, background, content scripts, bridge, downloader)
-- Strictly preserves user session credentials (mureka_session.json is never overwritten)
-- Works via companion bridge API (port 59966) and standalone CLI/batch
 """
 
-import os
 import sys
+sys.dont_write_bytecode = True
+import os
+os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 import re
 import json
 import shutil
 import tempfile
 import zipfile
+import atexit
 import urllib.request
 import urllib.error
 from pathlib import Path
+
+EXTENSION_ROOT = Path(__file__).resolve().parent
+
+# Chrome extension policy strictly prohibits folders starting with "_" (like __pycache__)
+def _purge_pycache():
+    p = EXTENSION_ROOT / "__pycache__"
+    if p.exists():
+        shutil.rmtree(p, ignore_errors=True)
+
+_purge_pycache()
+atexit.register(_purge_pycache)
 
 # Force UTF-8 encoding on Windows consoles
 if sys.stdout and hasattr(sys.stdout, "reconfigure"):
@@ -27,8 +34,6 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:
         pass
-
-EXTENSION_ROOT = Path(__file__).resolve().parent
 
 GITHUB_OWNER = "ravibadra9"
 GITHUB_REPO = "mureka-song-downloader"
@@ -43,8 +48,10 @@ PROTECTED_FILES = {
     "mureka_session.json",
     "session.json",
     ".mureka_session.json",
+    "github_token.txt",
     ".git",
     ".gitignore",
+    "__pycache__",
     "desktop.ini",
 }
 

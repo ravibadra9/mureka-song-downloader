@@ -14,17 +14,29 @@ Workflow:
     6. Verify OTA Manifest Deployment for instant user auto-updates
 """
 
-import os
 import sys
+sys.dont_write_bytecode = True
+import os
+os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 import re
 import json
 import shutil
 import zipfile
+import atexit
 import subprocess
 import time
 from pathlib import Path
 import urllib.request
 import urllib.error
+
+# Chrome extension restriction: No folder starting with "_" allowed in extension directory
+def _purge_pycache():
+    p = Path(__file__).resolve().parent / "__pycache__"
+    if p.exists():
+        shutil.rmtree(p, ignore_errors=True)
+
+_purge_pycache()
+atexit.register(_purge_pycache)
 
 # Ensure UTF-8 console output and ANSI support on Windows
 try:

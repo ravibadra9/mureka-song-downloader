@@ -13,16 +13,27 @@ Usage:
     python mureka_downloader.py --all --format wav --output "D:/MyMusic"
 """
 
-import os
 import sys
 sys.dont_write_bytecode = True
+import os
+os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 import re
 import json
 import time
 import shutil
+import atexit
 import argparse
 import threading
 from pathlib import Path
+
+# Chrome extension restriction: No folder starting with "_" allowed in extension directory
+def _purge_pycache():
+    p = Path(__file__).resolve().parent / "__pycache__"
+    if p.exists():
+        shutil.rmtree(p, ignore_errors=True)
+
+_purge_pycache()
+atexit.register(_purge_pycache)
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import urllib.request
 import urllib.parse
