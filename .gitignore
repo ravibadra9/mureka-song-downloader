@@ -1,0 +1,20 @@
+# User session data & tokens (MUST NEVER BE COMMITTED)
+mureka_session.json
+session.json
+.mureka_session.json
+github_token.txt
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+
+# Temporary & build artifacts
+*.tmp
+*.log
+*.zip
+dist/
+build/
+.vscode/
+.idea/

@@ -1,0 +1,420 @@
+/* Mureka Song Downloader - Content Injected Styles */
+
+#mureka-dl-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 999999;
+  background: linear-gradient(135deg, #10b981 0%, #06b6d4 50%, #3b82f6 100%);
+  color: #ffffff;
+  padding: 10px 18px;
+  border-radius: 30px;
+  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+#mureka-dl-fab:hover {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+#mureka-dl-fab .fab-icon {
+  font-size: 16px;
+  animation: mureka-pulse 2s infinite ease-in-out;
+}
+
+#mureka-dl-fab .fab-badge {
+  background: rgba(0, 0, 0, 0.4);
+  padding: 2px 7px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+@keyframes mureka-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+/* In-Page Studio Modal */
+#mureka-dl-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  z-index: 1000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: mureka-fade-in 0.2s ease;
+}
+
+#mureka-dl-modal {
+  background: #0f121d;
+  border: 1px solid #252b42;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 820px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(56, 189, 248, 0.15);
+  color: #f1f5f9;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+  animation: mureka-scale-up 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes mureka-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes mureka-scale-up {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.mureka-modal-header {
+  padding: 16px 22px;
+  background: #151a2b;
+  border-bottom: 1px solid #232a42;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mureka-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.mureka-modal-title .badge-tag {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.mureka-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mureka-icon-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.mureka-icon-btn:hover {
+  background: #252b42;
+  color: #ffffff;
+}
+
+.mureka-modal-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.mureka-user-card {
+  background: #171d30;
+  border: 1px solid #252e4b;
+  border-radius: 12px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.mureka-user-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mureka-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #10b981, #06b6d4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #ffffff;
+  font-size: 15px;
+}
+
+.mureka-username {
+  font-weight: 600;
+  font-size: 14px;
+  color: #ffffff;
+}
+
+.mureka-tier {
+  font-size: 11px;
+  color: #10b981;
+  font-weight: 600;
+}
+
+.mureka-user-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.mureka-stat-val {
+  color: #ffffff;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+/* Workspaces section */
+.mureka-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mureka-workspace-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.mureka-ws-card {
+  background: #141828;
+  border: 1px solid #222941;
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.mureka-ws-card:hover {
+  background: #1b2137;
+  border-color: #38bdf8;
+}
+
+.mureka-ws-card.selected {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: #10b981;
+}
+
+.mureka-ws-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.mureka-ws-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f1f5f9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mureka-ws-count {
+  font-size: 11px;
+  background: #20273d;
+  color: #94a3b8;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.mureka-ws-card.selected .mureka-ws-count {
+  background: rgba(16, 185, 129, 0.25);
+  color: #10b981;
+}
+
+/* Options Bar */
+.mureka-options-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding: 14px;
+  background: #141828;
+  border: 1px solid #222941;
+  border-radius: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mureka-option-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.mureka-select, .mureka-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.mureka-select select {
+  background: #0b0d14;
+  border: 1px solid #2c3451;
+  color: #ffffff;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  outline: none;
+}
+
+/* Progress Section */
+.mureka-progress-box {
+  margin-top: 10px;
+  background: #141828;
+  border: 1px solid #222941;
+  border-radius: 10px;
+  padding: 14px;
+  display: none;
+}
+
+.mureka-progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.mureka-progress-bar-bg {
+  height: 8px;
+  background: #0b0d14;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.mureka-progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #10b981, #06b6d4);
+  transition: width 0.2s ease;
+}
+
+.mureka-progress-status {
+  font-size: 11px;
+  color: #94a3b8;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Footer / Action Buttons */
+.mureka-modal-footer {
+  padding: 16px 24px;
+  background: #151a2b;
+  border-top: 1px solid #232a42;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mureka-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mureka-btn {
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  transition: all 0.15s ease;
+}
+
+.mureka-btn-primary {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+}
+
+.mureka-btn-primary:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+}
+
+.mureka-btn-secondary {
+  background: #232940;
+  color: #e2e8f0;
+}
+
+.mureka-btn-secondary:hover {
+  background: #2d3553;
+  color: #ffffff;
+}
+
+.mureka-btn-purple {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+  color: #ffffff;
+}
+
+.mureka-btn-purple:hover {
+  background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+}
+
+.mureka-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none !important;
+}

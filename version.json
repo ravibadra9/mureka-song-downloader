@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "name": "Mureka Song Downloader",
+  "release_date": "2026-10-24",
+  "changelog": [
+    "Initial Release: 1-Click OTA Auto-Updater, Multi-Workspace Downloader, Companion Bridge"
+  ],
+  "min_bridge_version": "1.0.0",
+  "github_repo": "https://github.com/ravibadra9/mureka-song-downloader",
+  "download_url": "https://github.com/ravibadra9/mureka-song-downloader/releases/latest"
+}

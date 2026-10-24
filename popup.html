@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mureka Song Downloader - Studio</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-brand">
+      <div class="brand-icon">🎵</div>
+      <div>
+        <div class="brand-title">
+          <span>Mureka Downloader</span>
+          <span class="badge">All Workspaces</span>
+        </div>
+      </div>
+    </div>
+    <div class="header-controls">
+      <button class="btn-icon-header" id="btn-ota-update" title="Check for Over-The-Air (OTA) Updates">
+        <span class="ota-pulse-dot" id="ota-pulse-dot" style="display: none;"></span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        <span id="btn-ota-label">OTA Update</span>
+      </button>
+      <button class="btn-icon-header" id="btn-open-full" title="Open in dedicated browser tab">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+        <span>Full Tab</span>
+      </button>
+      <button class="btn-icon-header" id="btn-open-sidepanel" title="Pin to Chrome Side Panel">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
+        <span>Side Panel</span>
+      </button>
+      <button class="btn-icon-header" id="btn-refresh-all" title="Refresh Mureka Session & Workspaces">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+        <span>Refresh</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Status / User strip -->
+  <section class="status-strip">
+    <div class="user-profile-badge">
+      <div class="user-avatar-mini" id="ui-avatar">M</div>
+      <span style="font-weight: 600; color: #fff;" id="ui-username">Detecting Mureka Account...</span>
+      <span class="badge-premier" id="ui-tier">Premier</span>
+      <span style="color: #94a3b8;" id="ui-gold">🪙 -- Gold</span>
+    </div>
+
+    <div class="bridge-status-pill" id="bridge-pill" title="Local Companion Bridge on http://127.0.0.1:59966">
+      <div class="bridge-dot" id="bridge-dot"></div>
+      <span id="bridge-label">Bridge: Checking...</span>
+    </div>
+  </section>
+
+  <!-- Summary Statistics -->
+  <section class="summary-container">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="label">Workspaces</span>
+        <span class="value" id="stat-total-ws">--</span>
+      </div>
+      <div class="stat-card">
+        <span class="label">Total Songs</span>
+        <span class="value highlight" id="stat-total-songs">--</span>
+      </div>
+      <div class="stat-card">
+        <span class="label">Selected WS</span>
+        <span class="value" id="stat-selected-ws">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="label">Selected Songs</span>
+        <span class="value highlight" id="stat-selected-songs">0</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Split Layout -->
+  <main class="main-content">
+    <div class="layout-split">
+      <!-- Left: Workspace Selector -->
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>📁 Workspaces</span>
+          </div>
+          <div class="panel-header-actions">
+            <label class="custom-checkbox">
+              <input type="checkbox" id="chk-select-all" checked>
+              <span style="font-size: 11px;">Select All</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="panel-body">
+          <div class="search-input-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="input-search-ws" placeholder="Search or filter workspaces...">
+          </div>
+
+          <div class="workspace-scroll-list" id="workspace-list">
+            <div style="text-align: center; padding: 30px; color: #94a3b8; font-size: 12px;">
+              Connecting to Mureka session & loading workspaces...
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right: Settings, Engine & Actions -->
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>⚙️ Download Settings</span>
+          </div>
+        </div>
+
+        <div class="panel-body">
+          <!-- Audio Format -->
+          <div class="form-group">
+            <label class="form-label">Audio Quality & Format</label>
+            <select class="select-styled" id="select-audio-format">
+              <option value="mp3">MP3 — 320kbps High Quality (Universal, Fast)</option>
+              <option value="wav">WAV — 16-bit Lossless Studio Master</option>
+              <option value="both">Both MP3 + Lossless WAV</option>
+            </select>
+          </div>
+
+          <!-- Options -->
+          <div class="checkbox-group">
+            <label class="custom-checkbox">
+              <input type="checkbox" id="chk-sort-folders" checked>
+              <span>Auto-organize into folders per workspace (<code>Mureka/&lt;Workspace&gt;/...</code>)</span>
+            </label>
+            <label class="custom-checkbox">
+              <input type="checkbox" id="chk-save-lyrics" checked>
+              <span>Download synchronized lyrics (<code>.lrc</code> / <code>.txt</code>)</span>
+            </label>
+            <label class="custom-checkbox">
+              <input type="checkbox" id="chk-skip-existing" checked>
+              <span>Skip songs already downloaded (prevent duplicates)</span>
+            </label>
+          </div>
+
+          <!-- Engine Cards -->
+          <div class="form-group">
+            <label class="form-label">Download Engine</label>
+            <div class="engine-cards">
+              <div class="engine-card active" data-engine="chrome" id="engine-chrome">
+                <span class="icon">🚀</span>
+                <span class="title">Chrome Native</span>
+                <span class="desc">Direct to Downloads</span>
+              </div>
+              <div class="engine-card" data-engine="zip" id="engine-zip">
+                <span class="icon">📦</span>
+                <span class="title">ZIP Archive</span>
+                <span class="desc">Single bundle</span>
+              </div>
+              <div class="engine-card" data-engine="bridge" id="engine-bridge">
+                <span class="icon">⚡</span>
+                <span class="title">Python Bridge</span>
+                <span class="desc">High-speed local</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="action-buttons-box">
+            <button class="btn-primary-glow" id="btn-start-download">
+              <span id="btn-start-icon">🚀</span>
+              <span id="btn-start-text">Download All Selected Workspaces</span>
+            </button>
+            <div class="secondary-actions-row">
+              <button class="btn-secondary" id="btn-quick-zip" title="Download all selected workspaces as a single clean ZIP archive">
+                <span>📦 Export ZIP</span>
+              </button>
+              <button class="btn-secondary" id="btn-sync-python" title="Export session / sync cookies to Python standalone tool">
+                <span>🐍 Sync with Python</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Live Progress Section -->
+    <section class="progress-container" id="progress-card" style="display: none;">
+      <div class="progress-header-row">
+        <span class="status-text" id="prog-current-status">Initializing download queue...</span>
+        <span class="percent-text" id="prog-overall-pct">0%</span>
+      </div>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="prog-overall-fill"></div>
+      </div>
+      <div class="progress-footer-row">
+        <span id="prog-count-detail">0 / 0 songs</span>
+        <div class="progress-controls">
+          <button class="btn-mini" id="btn-prog-pause">Pause</button>
+          <button class="btn-mini" id="btn-prog-cancel">Cancel</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Terminal Console Log -->
+    <section class="terminal-card">
+      <div class="terminal-header">
+        <span>ACTIVITY CONSOLE</span>
+        <div style="display: flex; gap: 8px;">
+          <span style="cursor: pointer; color: #94a3b8;" id="btn-clear-logs">Clear</span>
+        </div>
+      </div>
+      <div class="terminal-body" id="console-logs">
+        <div class="log-entry info">⚡ Mureka Studio Song Downloader v1.0.0 ready.</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="footer-left">
+      <span>Mureka Song Downloader</span>
+      <span>•</span>
+      <span class="footer-link" id="link-open-downloads">📂 Open Downloads Folder</span>
+      <span>•</span>
+      <span class="footer-link" id="link-mureka-site">🌐 Open Mureka.ai</span>
+    </div>
+    <div>
+      <span style="font-size: 11px;">Supports all 11+ Workspaces & Lossless Audio</span>
+    </div>
+  </footer>
+
+  <!-- OTA Update Modal -->
+  <div class="modal-backdrop" id="modal-ota" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span style="font-size: 16px;">⚡</span>
+          <span>Over-The-Air (OTA) Hot Updater</span>
+          <span class="badge" id="ota-modal-version-tag">Checking...</span>
+        </div>
+        <button class="modal-close" id="btn-ota-modal-close" title="Close modal">&times;</button>
+      </div>
+
+      <div class="modal-body" id="ota-modal-body">
+        <div class="ota-status-box">
+          <div class="ota-status-header">
+            <span class="ota-title" id="ota-status-title">Checking for updates...</span>
+            <span class="ota-date" id="ota-status-date"></span>
+          </div>
+          <p class="ota-desc" id="ota-status-desc">Connecting to GitHub releases & companion bridge...</p>
+        </div>
+
+        <div class="ota-changelog-card" id="ota-changelog-box" style="display: none;">
+          <div class="ota-changelog-title">📋 What's New</div>
+          <ul class="ota-changelog-list" id="ota-changelog-list"></ul>
+        </div>
+
+        <div class="ota-progress-box" id="ota-progress-box" style="display: none;">
+          <div class="ota-progress-bar-track">
+            <div class="ota-progress-bar-fill" id="ota-progress-fill"></div>
+          </div>
+          <div class="ota-progress-msg" id="ota-progress-msg">Applying updates from GitHub...</div>
+        </div>
+      </div>
+
+      <div class="modal-footer" id="ota-modal-footer">
+        <button class="btn-secondary" id="btn-ota-check-again">
+          <span>🔄 Check Again</span>
+        </button>
+        <button class="btn-primary-glow" id="btn-ota-apply-now" style="display: none;">
+          <span>🚀 Update Now (Auto-Reload)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="lib/jszip.min.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
